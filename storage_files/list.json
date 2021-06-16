@@ -3,23 +3,26 @@
 		"000001" : {
 			"username" : "liptontea19",
 			"password" : "aaaa",
-			"mangalist" : {
-				"Dai Dark" : {
+			"mangalist" : [
+				{
+					"title" : "Dai Dark",
 					"source" : "Kirei Cake",
 					"chapter_read" : "Bone 20",
 					"link" : "https://reader.kireicake.com/series/dai_dark/"	
 				},
-				"Jujutsu Kaisen" : {
+				{
+					"title" : "Jujutsu Kaisen",
 					"source" : "MANGA  Plus by SHUEISHA",
 					"chapter_read" : "#152",
 					"link" : "https://mangaplus.shueisha.co.jp/titles/100034"
 				},
-				"Yakuza Reincarnation" : {
+				{
+					"title" : "Yakuza Reincarnation",
 					"source" : "Kirei Cake",
 					"chapter_read" : "Chapter 22",
 					"link" : "https://reader.kireicake.com/series/yakuza_reincarnation/"
 				}
-			}
+			]
 		},
 		"000002" : {
 			"username" : "mangaman02",
