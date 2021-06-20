@@ -12,7 +12,7 @@
 				},
 				{
 					"title" : "Jujutsu Kaisen",
-					"source" : "MANGA  Plus by SHUEISHA",
+					"source" : "MANGA Plus by SHUEISHA",
 					"chapter_read" : "#152",
 					"link" : "https://mangaplus.shueisha.co.jp/titles/100034"
 				},
@@ -27,13 +27,14 @@
 		"000002" : {
 			"username" : "mangaman02",
 			"password" : "iluvkirito",
-			"mangalist" : {
-				"Isekai Mokushiroku Mynoghra" : {
-						"source" : "Galaxy Degen Scans",
-						"chapter_read": "Chapter 10.1",
-						"link" : "https://gdegenscans.xyz/manga/isekai-mokushiroku-mynoghra-hametsu-no-bunmei-de-hajimeru-sekai-seifuku/"
+			"mangalist" : [
+				{
+					"title": "Isekai Mokushiroku Mynoghra",
+					"source": "Galaxy Degen Scans",
+					"chapter_read": "Chapter 10.1",
+					"link": "https://gdegenscans.xyz/manga/isekai-mokushiroku-mynoghra-hametsu-no-bunmei-de-hajimeru-sekai-seifuku/"
 				}
-			}
+			]
 		}
 	}
 }

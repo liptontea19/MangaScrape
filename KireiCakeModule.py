@@ -1,5 +1,4 @@
 import requests
-import string
 from bs4 import BeautifulSoup
 
 URL = 'https://reader.kireicake.com/reader/'
@@ -68,24 +67,22 @@ def latest_release():
 def chapter_search(series_title, chapter_str, link):  # it should take the JSON object, grab the link from it and search
     series_page = requests.get(link)
     response_code_check(series_page.status_code)  # checks for any http request failure and informs the user if there is
-    chapter_read = int(chapter_str.strip(string.ascii_letters).replace(" ", ""))
     page_soup = BeautifulSoup(series_page.content, 'html.parser').find(id='content')
-    latest_chapter = page_soup.find('div', class_='element')
-    chapter_number = int(latest_chapter.find('div', class_='title').text.strip(string.ascii_letters).replace(" ", ""))
-    diff = chapter_number - chapter_read
-    if chapter_number > chapter_read:
-        if diff == 1:
-            print(f"Found {diff} update for {series_title} since your last read chapter, {chapter_str}")
+    count = 0
+    chapter = page_soup.find('div', class_='element')
+    total_chapters = len(page_soup.find_all('div', class_='element'))
+    while 1:  # loop should not continue more than the total number of chapters
+        chapter_element_link = chapter.find('a')['href']
+        chapter_element_name = chapter.find('div', class_='title')
+        if chapter_element_name.text == chapter_str:
+            break
+        count = count + 1
+        print(f"{chapter_element_name.text}: {chapter_element_link}")
+        chapter = chapter.next_sibling
+    if count > 0:
+        if count == 1:
+            print(f"Found {count} update for {series_title} since your last read chapter, {chapter_str}")
         else:
-            print(f"Found {diff} updates for {series_title} since your last read chapter, {chapter_str}")
-        chapter = page_soup.find('div', class_='element')
-        for chapters in range(chapter_read, chapter_number):  # for loop to fetch each chapter
-            chapter_element_link = chapter.find('a')['href']
-            chapter_element_name = chapter.find('div', class_='title')
-            print(f"{chapter_element_name.text}: {chapter_element_link}")
-            chapter = chapter.next_sibling
-            # when the discord implementation is in place, allow the user to react to the message with a tick
-            # or cross emoji confirming whether the user has read the latest chapter, thereby updating the JSON
-            # file with the latest number
+            print(f"Found {count} updates for {series_title} since your last read chapter, {chapter_str}")
     else:
         print("You are up to date with the latest released chapter, " + chapter_str)
