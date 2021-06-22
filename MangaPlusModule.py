@@ -10,3 +10,10 @@ def chapter_search(series_title, chapter_str, link):
     chapter = page_soup.find_all('div', class_='ChapterListItem-module_chapterListItem_ykICp')
     #print(page_soup.prettify())
     print(len(chapter))
+
+
+async def aiochapter_search(session, series_title, chapter_str, url):
+    async with session.get(url) as resp:
+        print(resp.status())
+        page_soup = BeautifulSoup(await resp.read(), 'html.parser')
+        chapter_list = page_soup.find_all('div', class_='ChapterListItem-module_chapterListItem_ykICp')

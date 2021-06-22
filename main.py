@@ -4,12 +4,13 @@
 # contain the respective website's scraping code
 # ---------------------------------------------------------------------------------
 import asyncio
-
+import aiohttp
 import discord
 from pymongo import MongoClient
 
 import KireiCakeModule
 import MangaPlusModule
+import CatMangaModule
 
 cluster = MongoClient("mongodb+srv://dbAdmin:UQucdAwtZHXY5DPr@cluster0.rolmr.mongodb.net/test")
 
@@ -32,6 +33,8 @@ helpmanual_adding = ("Adding a manga is an easy and simple task. For example, if
 
 client = discord.Client()
 
+#session = aiohttp.ClientSession()
+# request = await session.get(link)
 
 def display_mangas_in_list(mangalist, curr_index: int, size: int):  # size refers to the number of items in the list to display
     list_text = "**No.** | **Title** :arrow_down_small:| **Chapter** | **Source**\n"
@@ -89,6 +92,7 @@ async def on_message(ctx):
                 output = await ctx.author.send(output_text)
                 await output.add_reaction("✔")
         elif "$updates" in str(ctx.content.lower()):  # do not test until AIOHTTP port is in place!!!
+            session = aiohttp.ClientSession()
             user = collection.find(myquery)
             for result in user:
                 mangalist = result["mangalist"]
@@ -96,13 +100,19 @@ async def on_message(ctx):
                 for manga in mangalist:
                     title = manga['title']
                     source = manga['source']
-                    chapter_read = manga['chapter_read']
                     link = manga['link']
                     print(f"Looking up {title} on {source}")
-                    if source == "Kirei Cake":
-                        KireiCakeModule.chapter_search(title, chapter_read, link)
-                    elif source == "MANGA Plus by SHUEISHA":
-                        MangaPlusModule.chapter_search(title, chapter_read, link)
+                    if source == "Cat Manga":
+                        await ctx.author.send(
+                            await CatMangaModule.aio_chapter_search(session, manga['title'], manga['chapter_read'], link))
+                    elif source == "Kirei Cake":
+                        await ctx.author.send(
+                            await KireiCakeModule.aiochapter_search(session, manga['title'], manga['chapter_read'], link))
+                    """    
+                    #elif source == "MANGA Plus by SHUEISHA":
+                        #MangaPlusModule.chapter_search(title, chapter_read, link)
+                    """
+                await session.close()
         elif ctx.content.startswith('$editlist'):
             user = collection.find(myquery)
             for result in user:
