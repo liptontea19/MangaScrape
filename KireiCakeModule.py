@@ -88,7 +88,7 @@ def chapter_search(series_title, chapter_str, link):  # it should take the JSON 
         print("You are up to date with the latest released chapter, " + chapter_str)
 
 
-async def aiochapter_search(session, series_title, chapter_str, url):
+async def aio_chapter_search(session, series_title, chapter_str, url):
     async with session.get(url) as resp:
         print(resp.status)
         page_soup = BeautifulSoup(await resp.read(), 'html.parser').find(id='content')
@@ -104,25 +104,25 @@ async def aiochapter_search(session, series_title, chapter_str, url):
                 chapter_exists = True
                 break
             print(f"{chapter_element_name.text}: {chapter_element_link}")
-            body_text = body_text + f"\n{chapter_element_name.text}: {chapter_element_link}"
+            body_text = f"\n{chapter_element_name.text}: {chapter_element_link}" + body_text
             chapter = chapter.next_sibling
             earliest_chapter = chapter_element_name
         if chapter_exists:
             print("Chapter exists")
             if count > 0:
                 if count == 1:
-                    print(f"Found {count} update for {series_title} since your last read chapter, {chapter_str}.")
-                    return f"Found {count} update for {series_title} since your last read chapter, " \
-                           f"{chapter_str}." + body_text
+                    head_text = f"**{series_title}**\n1 update since your last read chapter, {chapter_str}."
+                    print(head_text)
                 else:
-                    print(f"Found {count} updates for {series_title} since your last read chapter, {chapter_str}.")
-                    return f"Found {count} updates for {series_title} since your last read chapter, " \
-                           f"{chapter_str}." + body_text
+                    head_text = f"**{series_title}**\n{count} updates since your last read chapter, {chapter_str}."
+                    print(head_text)
+                return head_text + body_text + "\n"
             else:
                 print("You are up to date with the latest released chapter, " + chapter_str)
+                return ""
         else:
             print("Your manga chapter cannot be found on the website. You might want to check your list.")
-            return f"{series_title} {chapter_str} cannot be found on the website. You might want to check your " \
+            return f"**{series_title}**\n`{chapter_str}` cannot be found on the website. You might want to check your " \
                    f"list.\nNewest chapter found: {page_soup.find('div', class_='element')}. " \
-                   f"Oldest chapter found: {earliest_chapter} Total chapters: {str(total_chapters)}\nLink: {url}"
+                   f"Oldest chapter found: {earliest_chapter} Total chapters: {str(total_chapters)}\nLink: {url}\n"
             # inform the user in the event that the manga could not be found

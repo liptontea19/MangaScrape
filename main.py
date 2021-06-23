@@ -8,9 +8,9 @@ import aiohttp
 import discord
 from pymongo import MongoClient
 
+import CatMangaModule
 import KireiCakeModule
 import MangaPlusModule
-import CatMangaModule
 
 cluster = MongoClient("mongodb+srv://dbAdmin:UQucdAwtZHXY5DPr@cluster0.rolmr.mongodb.net/test")
 
@@ -33,13 +33,16 @@ helpmanual_adding = ("Adding a manga is an easy and simple task. For example, if
 
 client = discord.Client()
 
-#session = aiohttp.ClientSession()
+# session = aiohttp.ClientSession()
 # request = await session.get(link)
+
 
 def display_mangas_in_list(mangalist, curr_index: int, size: int):  # size refers to the number of items in the list to display
     list_text = "**No.** | **Title** :arrow_down_small:| **Chapter** | **Source**\n"
-    for x in range(curr_index, curr_index + size - 1):
+    for x in range(curr_index, curr_index + size):
         list_text = list_text + f"{str(x + 1)} | {mangalist[x]['title']} | {mangalist[x]['chapter_read']} | {mangalist[x]['source']}\n"
+        if x+1 == len(mangalist):
+            break
     return list_text
 
 
@@ -68,6 +71,48 @@ async def on_message(ctx):
         await ctx.author.send(helpmanual)
     elif ctx.content.startswith('$h addmanga'):
         await ctx.author.send(helpmanual_adding)
+    elif ctx.content.startswith('$search'):
+        session = aiohttp.ClientSession()
+        link = ctx.content.replace("$search ", "")
+        source = ""
+        manga_found = False
+        if "catmanga.org" in link:
+            source = "Cat Manga"
+            manga = await CatMangaModule.aio_manga_details(session, link)
+            if manga['status'] != "Request failed" or manga['status'] != "Unable to gather information from link.":
+                manga_found = True
+                output_text = f"**Title:** {manga['title']}\n**Author:** {manga['author']}\n{manga['description']}\n" \
+                              f"**Status:** {manga['status']} **Total Chapters:** {manga['chapters']}"
+                await ctx.author.send(output_text + "\nWould you like to add this manga to your list? (Y/N)")
+            else:
+                await ctx.author.send(manga['status'])
+        await session.close()
+
+        if manga_found:
+            def check(msg):
+                return ctx.author == msg.author
+            try:
+                msg = await client.wait_for('message', check=check, timeout=15)
+            except asyncio.TimeoutError:
+                print("$search command has timed out.")
+                await ctx.author.send("Your request has timed out, please try again.")
+            else:
+                if msg.content == "Y":
+                    print("Adding manga to collection.")
+                    if collection.count_documents({"_id": ctx.author.id}) == 0:
+                        post = {"_id": ctx.author.id,
+                                "mangalist": {"title": manga['title'], "source": source, "chapter_read": "Chapter 1",
+                                            "link": link}}
+                        collection.insert_one(post)
+                    else:
+                        user = collection.find({"_id": ctx.author.id})
+                        for result in user:
+                            mangalist = result["mangalist"]
+                        mangalist.append({"title": manga['title'], "source": source, "chapter_read": "Chapter 1", "link": link})
+                        collection.update_one({"_id": ctx.author.id}, {"$set": {"mangalist": mangalist}})
+                    await ctx.author.send(f"Added {manga['title']} to the list.")
+
+
 
     myquery = {"_id": ctx.author.id}
     if collection.count_documents(myquery) == 0:  # checks if the user has an account on the database
@@ -85,15 +130,19 @@ async def on_message(ctx):
             for result in user:
                 mangalist = result["mangalist"]
                 mangalist.sort(key=lambda x: x['title'])  # alphabetically sorts the mangas by title for displaying
+                """
                 output_text = "**Title** :arrow_down_small:| **Website** | **Chapter**\n" + \
                               '\n'.join((manga['title'] + ' | ' + manga['source'] + ' | ' + manga['chapter_read'])
                                         for manga in mangalist)
+                """
+                output_text = display_mangas_in_list(mangalist, 0, 10)
                 print(output_text)
                 output = await ctx.author.send(output_text)
                 await output.add_reaction("✔")
         elif "$updates" in str(ctx.content.lower()):  # do not test until AIOHTTP port is in place!!!
             session = aiohttp.ClientSession()
             user = collection.find(myquery)
+            updates_text = ""
             for result in user:
                 mangalist = result["mangalist"]
                 mangalist.sort(key=lambda x: x['title'])
@@ -101,18 +150,17 @@ async def on_message(ctx):
                     title = manga['title']
                     source = manga['source']
                     link = manga['link']
-                    print(f"Looking up {title} on {source}")
+                    chapter = manga['chapter_read']
+                    print(f"Looking up {title} on {source}, {chapter}")
                     if source == "Cat Manga":
-                        await ctx.author.send(
-                            await CatMangaModule.aio_chapter_search(session, manga['title'], manga['chapter_read'], link))
+                        updates_text = updates_text + await CatMangaModule.aio_chapter_search(session, title, chapter, link)
                     elif source == "Kirei Cake":
-                        await ctx.author.send(
-                            await KireiCakeModule.aiochapter_search(session, manga['title'], manga['chapter_read'], link))
-                    """    
-                    #elif source == "MANGA Plus by SHUEISHA":
+                        updates_text = updates_text + await KireiCakeModule.aio_chapter_search(session, title, chapter, link)
+                    elif source == "MANGA Plus by SHUEISHA":
                         #MangaPlusModule.chapter_search(title, chapter_read, link)
-                    """
+                        updates_text = updates_text + "Manga+ search not supported yet :(.\n"
                 await session.close()
+                await ctx.author.send(updates_text)
         elif ctx.content.startswith('$editlist'):
             user = collection.find(myquery)
             for result in user:
@@ -120,7 +168,7 @@ async def on_message(ctx):
                 mangalist.sort(key=lambda x: x['title'])
                 count = 0
                 output = await ctx.author.send("Enter the index number of the manga you would like to edit in the "
-                                               "list\n" + display_mangas_in_list(mangalist, count, 5))
+                                               "list\n" + display_mangas_in_list(mangalist, count, 10))
                 await output.add_reaction("⬇")
 
                 def check(m):
@@ -161,6 +209,8 @@ async def on_message(ctx):
                             edit_field = 'source'
                         elif msg.content == "L":
                             edit_field = 'link'
+                        else:
+                            edit_field = "Error: Missing Text"
                         await ctx.author.send('Type in the new ' + edit_field)
                         """
                         if str(reaction.emoji) == "🇹":  # the reaction implementation
@@ -187,7 +237,7 @@ async def on_message(ctx):
                 mangalist.sort(key=lambda x: x['title'])
                 count = 0
                 output = await ctx.author.send("Enter the index number of the manga you would like to delete from the "
-                                               "list\n" + display_mangas_in_list(mangalist, count, 5))
+                                               "list\n" + display_mangas_in_list(mangalist, count, 10))
                 await output.add_reaction("⬇")
 
                 def check(m):
@@ -202,7 +252,7 @@ async def on_message(ctx):
                     print(index_num)
                     del mangalist[index_num]
                     collection.update_one({"_id": ctx.author.id}, {"$set": {"mangalist": mangalist}})
-                    await ctx.author.send(display_mangas_in_list(mangalist, 0, len(mangalist) + 1))
+                    await ctx.author.send(display_mangas_in_list(mangalist, 0, len(mangalist)))
 
     if "$addmanga" in str(ctx.content.lower()):
         await ctx.author.send("Please type in the title, website source, chapter and link to the manga you "
@@ -239,7 +289,7 @@ async def on_message(ctx):
                     collection.update_one({"_id": ctx.author.id}, {"$set": {"mangalist": mangalist}})
                 await ctx.author.send("Added the new manga to the list.")
 
-
+"""
 async def on_reaction_add(reaction, user):
     if user == client.user:
         return
@@ -249,6 +299,6 @@ async def on_reaction_add(reaction, user):
 
     if reaction.emoji == "😘":
         await print("Reaction")
-
+"""
 
 client.run("ODU1MDMwMzk5MTA4MzgyNzUx.YMsjHA.zKWpJFJ4l_ZA8lR96OZdnoFNiyY")  # discord bot credentials
