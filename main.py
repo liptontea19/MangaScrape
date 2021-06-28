@@ -20,16 +20,16 @@ intents.reactions = True
 intents.dm_messages = True
 intents.dm_reactions = True
 
-cluster = MongoClient("mongodb+srv://dbAdmin:UQucdAwtZHXY5DPr@cluster0.rolmr.mongodb.net/test")
+with open('token.json') as file:
+    token = json.load(file)
+
+cluster = MongoClient(token["mongoDB"])
 
 db = cluster["MangaScrapeDB"]
 
 collection = db["UserData"]
 
-with open('token.json') as file:
-    token = json.load(file)["token"]
-
-helpmanual = "Here's a  list of commands that MangaScrapeBot can do!\n" \
+helpmanual = "Here's a list of commands that MangaScrapeBot can do!\n" \
              "As MangaScrapeBot is currently under development, special features such as `$search` and `$updates` " \
              "support a few websites at the moment. Supported websites and features are listed in detail in their " \
              "respective help sections which you can access by typing `$h` before the name of the command.\n" \
@@ -52,7 +52,7 @@ helpmanual_adding = ("Adding a manga is an easy and simple task. For example, if
 client = discord.Client(intents=intents)
 
 
-def display_mangas_in_list(mangalist, curr_index: int,size: int):
+def display_mangas_in_list(mangalist, curr_index: int, size: int):
     # size refers to the number of items in the list to display
     list_text = "**No.** | **Title** :arrow_down_small:| **Chapter** | **Source**\n"
     for x in range(curr_index, curr_index + size):
@@ -98,9 +98,15 @@ async def on_message(ctx):
             manga = await CatMangaModule.aio_manga_details(session, link)
             if manga['status'] != "Request failed" or manga['status'] != "Unable to gather information from link.":
                 manga_found = True
-                output_text = f"**Title:** {manga['title']}\n**Author:** {manga['author']}\n{manga['description']}\n" \
-                              f"**Status:** {manga['status']} **Total Chapters:** {manga['chapters']}"
-                await ctx.author.send(output_text + "\nWould you like to add this manga to your list? (Y/N)")
+                embed = discord.Embed(title=manga['title'], url=link, description=manga['description'])
+                embed.set_author(name="Cat Manga")
+                embed.add_field(name="Total Chapters", value=manga['chapters'], inline=False)
+                embed.add_field(name="Status", value=manga['status'], inline=True)
+                embed.add_field(name="Manga Author", value=manga['author'], inline=True)
+                await ctx.author.send(embed=embed)
+                # output_text = f"**Title:** {manga['title']}\n**Author:** {manga['author']}\n{manga['description']}\n" \
+                              #f"**Status:** {manga['status']} **Total Chapters:** {manga['chapters']}"
+                #await ctx.author.send(output_text + "\nWould you like to add this manga to your list? (Y/N)")
             else:
                 await ctx.author.send(manga['status'])
         await session.close()
@@ -116,20 +122,25 @@ async def on_message(ctx):
                 await ctx.author.send("Your request has timed out, please try again.")
             else:
                 if msg.content == "Y":
+                    await ctx.author.send("Type in the latest chapter you have read, leave blank if you're starting a new series.")
+                    try:
+                        chapter = await client.wait_for('message', check=check, timeout=15)
+                    except asyncio.TimeoutError:
+                        chapter = "Chapter 1"
                     print("Adding manga to collection.")
-                    if collection.count_documents({"_id": ctx.author.id}) == 0:
+                    if collection.count_documents({"_id": ctx.author.id}) == 0:  # first manga being added to list
                         post = {"_id": ctx.author.id,
-                                "mangalist": {"title": manga['title'], "source": source, "chapter_read": "Chapter 1",
-                                              "link": link}}
+                                "mangalist": {{"title": manga['title'], "source": source, "chapter_read": chapter,
+                                              "link": link}}}
                         collection.insert_one(post)
                     else:
                         user = collection.find({"_id": ctx.author.id})
                         for result in user:
                             mangalist = result["mangalist"]
                             mangalist.append(
-                                {"title": manga['title'], "source": source, "chapter_read": "Chapter 1", "link": link})
+                                {"title": manga['title'], "source": source, "chapter_read": chapter, "link": link})
                             collection.update_one({"_id": ctx.author.id}, {"$set": {"mangalist": mangalist}})
-                    await ctx.author.send(f"Added {manga['title']} to the list.")
+                    await ctx.author.send(f"Added {manga['title']} to the list. Currently at " + chapter)
 
     myquery = {"_id": ctx.author.id}
     if collection.count_documents(myquery) == 0:  # checks if the user has an account on the database
@@ -181,7 +192,7 @@ async def on_message(ctx):
                                 await output.add_reaction("\U00002B05")  # leftward pointing arrow
                             if (len(mangalist) - curr_count) >= 10:
                                 await output.add_reaction("\U000027A1")  # rightward pointing arrow
-        elif "$updates" in str(ctx.content.lower()):  # do not test until AIOHTTP port is in place!!!
+        elif "$updates" in str(ctx.content.lower()):  # todo find a way to handle a massive amount of updates being found at once
             session = aiohttp.ClientSession()
             user = collection.find(myquery)
             updates_text = ""
@@ -307,8 +318,8 @@ async def on_message(ctx):
                 print(f"Adding manga Title: {title}, Source: {source}, Chapter: {chapter}, Link: {link}")
                 if collection.count_documents(myquery) == 0:
                     post = {"_id": ctx.author.id,
-                            "mangalist": {"title": title, "source": source, "chapter_read": chapter,
-                                          "link": link}}
+                            "mangalist": {{"title": title, "source": source, "chapter_read": chapter,
+                                          "link": link}}}
                     collection.insert_one(post)
                 else:
                     user = collection.find(myquery)
@@ -353,4 +364,4 @@ async def on_reaction_add(reaction, user):
         print("Reaction")
 
 
-client.run(token)  # discord bot credentials
+client.run(token["token"])  # discord bot credentials
