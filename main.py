@@ -99,16 +99,18 @@ async def on_message(ctx):
             if manga['status'] != "Request failed" or manga['status'] != "Unable to gather information from link.":
                 manga_found = True
                 embed = discord.Embed(title=manga['title'], url=link, description=manga['description'])
+                embed.set_thumbnail(url=manga['cover'])
                 embed.set_author(name="Cat Manga")
                 embed.add_field(name="Total Chapters", value=manga['chapters'], inline=False)
                 embed.add_field(name="Status", value=manga['status'], inline=True)
                 embed.add_field(name="Manga Author", value=manga['author'], inline=True)
+                embed.set_footer(text="Would you like to add this manga to your list? (Y/N)")
                 await ctx.author.send(embed=embed)
-                # output_text = f"**Title:** {manga['title']}\n**Author:** {manga['author']}\n{manga['description']}\n" \
-                              #f"**Status:** {manga['status']} **Total Chapters:** {manga['chapters']}"
-                #await ctx.author.send(output_text + "\nWould you like to add this manga to your list? (Y/N)")
             else:
                 await ctx.author.send(manga['status'])
+        else:
+            await ctx.author.send("This function only supports Cat Manga at the moment, "
+                                  "if you would like your website to be added, message me.")
         await session.close()
 
         if manga_found:
@@ -219,6 +221,10 @@ async def on_message(ctx):
                         output = await ctx.author.send(updates_text)  # display only 1 thing, updates and nothing else
                         await output.add_reaction("✅")
                         update_flag = False
+                    # todo crucial change: the chapter_search functions return multiple values and a type specifier
+                    #  such that the system knows how to handle the information i.e. whether to display the information,
+                    #  add the ✅ mark, this fix will prevent the error message from having the ✅ mark event from
+                    #  occurring on a message it was not intended for
 
                 await session.close()
         elif ctx.content.startswith('$editlist'):
@@ -364,4 +370,4 @@ async def on_reaction_add(reaction, user):
         print("Reaction")
 
 
-client.run(token["token"])  # discord bot credentials
+client.run(token["discord"])  # discord bot credentials

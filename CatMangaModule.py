@@ -57,8 +57,10 @@ async def aio_manga_details(session, url):
             description = page_soup.find('p', class_='css-fo0pm6 e1jf7yel3').text
             manga_status = page_soup.find('span', class_='css-15575wy e1jf7yel0').text
             chapter_count = len(page_soup.find_all('a', class_='css-1pfv033 e1ba5g7u0'))
+            manga_cover = page_soup.find('img', class_='e1jf7yel7 css-1jarxog e1je4q6n0')['src']
+            print(manga_cover)
             return {
                 "title": title, "author": author_name, "description": description,
-                "status": manga_status, "chapters": chapter_count
+                "status": manga_status, "chapters": chapter_count, "cover": manga_cover
             }
 
