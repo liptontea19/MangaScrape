@@ -1,4 +1,5 @@
 import requests
+import logging
 from bs4 import BeautifulSoup
 
 URL = 'https://reader.kireicake.com/reader/'
@@ -53,39 +54,10 @@ def latest_release():
     title = release.find('div', class_='title')
     latest_link = element.find('a')['href']
     chapter_number = element.find('div', class_='title')
-    release_date = meta_r.text.replace("by", "")
-    # todo write an if else statement to check if the release date is a word or a date and filter the data accordingly
-    release_date = release_date.replace("Kirei", "")
-    release_date = release_date.replace("Cake", "")
-    release_date = release_date.replace(",", "")
-    release_date = release_date.replace(" ", "", 4)
+    release_date = meta_r.text.split(",")[1].replace(" ", "")
 
     print(f"The latest release from Kirei Cake was: {title.text}\n"
           f"{chapter_number.text} on {release_date}\nLink: {latest_link}")
-
-
-def chapter_search(series_title, chapter_str, link):  # it should take the JSON object, grab the link from it and search
-    series_page = requests.get(link)
-    response_code_check(series_page.status_code)  # checks for any http request failure and informs the user if there is
-    page_soup = BeautifulSoup(series_page.content, 'html.parser').find(id='content')
-    count = 0
-    chapter = page_soup.find('div', class_='element')
-    total_chapters = len(page_soup.find_all('div', class_='element'))
-    while 1:  # loop should not continue more than the total number of chapters
-        chapter_element_link = chapter.find('a')['href']
-        chapter_element_name = chapter.find('div', class_='title')
-        if chapter_element_name.text == chapter_str:
-            break
-        count = count + 1
-        print(f"{chapter_element_name.text}: {chapter_element_link}")
-        chapter = chapter.next_sibling
-    if count > 0:
-        if count == 1:
-            print(f"Found {count} update for {series_title} since your last read chapter, {chapter_str}")
-        else:
-            print(f"Found {count} updates for {series_title} since your last read chapter, {chapter_str}")
-    else:
-        print("You are up to date with the latest released chapter, " + chapter_str)
 
 
 async def aio_chapter_search(session, series_title, chapter_str, url):
@@ -122,7 +94,113 @@ async def aio_chapter_search(session, series_title, chapter_str, url):
                 return ""
         else:
             print("Your manga chapter cannot be found on the website. You might want to check your list.")
-            return f"**{series_title}**\n`{chapter_str}` cannot be found on the website. You might want to check your " \
-                   f"list.\nNewest chapter found: {page_soup.find('div', class_='element')}. " \
+            return f"**{series_title}**\n`{chapter_str}` cannot be found on the website. You might want to check " \
+                   f"your list.\nNewest chapter found: {page_soup.find('div', class_='element')}. " \
                    f"Oldest chapter found: {earliest_chapter} Total chapters: {str(total_chapters)}\nLink: {url}\n"
             # inform the user in the event that the manga could not be found
+
+
+async def aio_chapter_search2(session, series_title, chapter_str, url):
+    async with session.get(url) as resp:
+        print(resp.status)
+        page_soup = BeautifulSoup(await resp.read(), 'html.parser')
+        chapter = page_soup.find('div', class_='element')
+        total_chapters = len(page_soup.find_all('div', class_='element'))
+        print("Total Chapters: " + str(total_chapters))
+        chapter_exists: bool = False
+        chapters = []
+        chp_links = []
+        release_dates = []
+        for count in range(0, total_chapters):
+            if chapter.find('div', class_='title').text == chapter_str:
+                chapter_exists = True
+                if count > 6:
+                    for cnt in range(5, 2, -1):
+                        chapter = chapter.previous_sibling
+                        chapters[cnt] = chapter.find('div', class_='title').text
+                        chp_links[cnt] = chapter.find('a')['href']
+                        release_date = chapter.find('div', class_='meta_r').text.split(",")[1].replace(" ", "")
+                        release_dates[cnt] = release_date
+                    print(chapters)
+                break
+            if count < 6:  # stop appending after the 6th element
+                chapters.append(chapter.find('div', class_='title').text)
+                chp_links.append(chapter.find('a')['href'])
+                release_date = chapter.find('div', class_='meta_r').text.split(",")[1].replace(" ", "")
+                release_dates.append(release_date)
+            earliest_chapter = chapter.find('div', class_='title').text
+            chapter = chapter.next_sibling
+            """
+            1. Iterate down list until item is found, when found and count < 6, break loop
+            2. There should be no more than 6 elements in the array, after the 6th element is added, stop appending 
+                values into the array until the chapter is found but keep iterating through elements and tracking the 
+                earliest_chapter value
+            3. If found and count >= 6, roll back the chapter to the previous 3 before the current one and put those 
+                values into the array
+            Example: Count of 14 items, array elements 1 to 3: 1st 2nd & 3rd, array elements 4 to 6: 12th, 13th & 14th 
+            """
+        if chapter_exists:
+            print("Chapter exists")
+            if count > 0:
+                if count == 1:
+                    description = f"1 update since your last read chapter, {chapter_str}."
+                elif count <= 6:
+                    description = f"{count} updates since your last read chapter, {chapter_str}."
+                else:
+                    description = f"{count} updates since your last read chapter, {chapter_str}.\nDisplaying the 3 " \
+                                  f"chapters closest to your last read chapter and the 3 newest chapters found."
+                print(description + " returned status: Update Found")
+                manga = {'title': series_title, 'source_name': "Kirei Cake", 'source_link': url, 'chapters': chapters,
+                         'chp_links': chp_links, 'release_date': release_dates, 'description': description,
+                         'status': "Update found"}
+                try:
+                    manga['thumbnail'] = page_soup.find('div', class_='thumbnail').find('img')['src']
+                except AttributeError:
+                    print("Manga thumbnail cannot be found.")
+            else:
+                print("User is up to date with the latest released chapter of " + series_title + ", "
+                      + chapter_str + " returned status: Up to date")
+                manga = {'status': "Up to date"}
+        else:
+            print(f"{series_title} {chapter_str} cannot be found on the website, returned status: Failure.")
+            manga = {'title': series_title, 'source_name': "Kirei Cake", 'source_link': url,
+                     'chapters': [], 'chp_links': [], 'status': "Failure",
+                     'description': f"The chapter listed on your mangalist, {chapter_str}, cannot be found on the "
+                                    f"website.\nChapters found: {earliest_chapter} - "
+                                    f"{page_soup.find('div', class_='element').find('div', class_='title').text}. "
+                                    f"\nTotal chapters: {str(total_chapters)}"}
+            try:
+                manga['thumbnail'] = page_soup.find('div', class_='thumbnail').find('img')['src']
+            except AttributeError:
+                print("Manga thumbnail cannot be found.")
+        return manga
+        # All conditions result in a return of the manga dict with a status variable:
+        # "Update found", "Up to date" or "Failure"
+
+
+async def aio_manga_details(session, url):
+    # return an object that contains: Manga Description, Author Name, Number of Chapters, Latest Chapter, Status:ongoing
+    async with session.get(url) as resp:
+        print(resp.status)
+        if resp.status != 200:
+            return {'request_status': "Failure"}
+        page_soup = BeautifulSoup(await resp.read(), 'html.parser')
+        try:
+            title = page_soup.find('div', class_='info').find('li').text.replace("Title: ", "")
+        except AttributeError:
+            return {"request_status": "Unable to gather information from link"}
+        else:
+            description = page_soup.find('div', class_='info').find('li').find_next_sibling('li').text
+            print(description)
+            if description == "":
+                description = "Not found."
+            manga = {
+                'title': title, 'description': description,
+                'chapters': len(page_soup.find_all('div', class_='element')),
+                'request_status': "Success"
+            }
+            try:
+                manga['cover'] = page_soup.find('div', class_='thumbnail').find('img')['src']
+            except AttributeError:
+                logging.info("Manga thumbnail cannot be found.")
+            return manga
