@@ -110,7 +110,7 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
         chapter_exists: bool = False
         chapters = []
         chp_links = []
-        release_dates = []
+        field_values = []
         for count in range(0, total_chapters):
             if chapter.find('div', class_='title').text == chapter_str:
                 chapter_exists = True
@@ -118,16 +118,14 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                     for cnt in range(5, 2, -1):
                         chapter = chapter.previous_sibling
                         chapters[cnt] = chapter.find('div', class_='title').text
-                        chp_links[cnt] = chapter.find('a')['href']
-                        release_date = chapter.find('div', class_='meta_r').text.split(",")[1].replace(" ", "")
-                        release_dates[cnt] = release_date
+                        field_values[cnt] = f"[Read here]({chapter.find('a')['href']}) | " \
+                                            f"{chapter.find('div', class_='meta_r').text.split(',')[1].replace(' ', '')}"
                     print(chapters)
                 break
             if count < 6:  # stop appending after the 6th element
                 chapters.append(chapter.find('div', class_='title').text)
-                chp_links.append(chapter.find('a')['href'])
-                release_date = chapter.find('div', class_='meta_r').text.split(",")[1].replace(" ", "")
-                release_dates.append(release_date)
+                field_values.append(f"[Read here]({chapter.find('a')['href']}) | "
+                                    f"{chapter.find('div', class_='meta_r').text.split(',')[1].replace(' ', '')}")
             earliest_chapter = chapter.find('div', class_='title').text
             chapter = chapter.next_sibling
             """
@@ -151,7 +149,7 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                                   f"chapters closest to your last read chapter and the 3 newest chapters found."
                 print(description + " returned status: Update Found")
                 manga = {'title': series_title, 'source_name': "Kirei Cake", 'source_link': url, 'chapters': chapters,
-                         'chp_links': chp_links, 'release_date': release_dates, 'description': description,
+                         'value': field_values, 'description': description,
                          'status': "Update found"}
                 try:
                     manga['thumbnail'] = page_soup.find('div', class_='thumbnail').find('img')['src']
@@ -164,7 +162,7 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
         else:
             print(f"{series_title} {chapter_str} cannot be found on the website, returned status: Failure.")
             manga = {'title': series_title, 'source_name': "Kirei Cake", 'source_link': url,
-                     'chapters': [], 'chp_links': [], 'status': "Failure",
+                     'chapters': [], 'value': [], 'status': "Failure",
                      'description': f"The chapter listed on your mangalist, {chapter_str}, cannot be found on the "
                                     f"website.\nChapters found: {earliest_chapter} - "
                                     f"{page_soup.find('div', class_='element').find('div', class_='title').text}. "

@@ -51,7 +51,7 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
         total_chapters = len(page_soup.find_all('a', class_="css-1pfv033 e1ba5g7u0"))
         chapter_exists: bool = False
         chapters = []
-        chp_links = []
+        value_field = []
         for count in range(0, total_chapters):
             chapter_title = chapter.find('p', class_="css-1lrrmqm e1ba5g7u2").text
             if chapter_title == chapter_str:
@@ -60,13 +60,15 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                     for cnt in range(5, 2, -1):
                         chapter = chapter.previous_sibling
                         chapters[cnt] = chapter.find('p', class_="css-1lrrmqm e1ba5g7u2").text
-                        chp_links[cnt] = "https://catmanga.org" + chapter['href']
+                        # chp_links[cnt] = "https://catmanga.org" + chapter['href']
+                        value_field[cnt] = "https://catmanga.org" + chapter['href']
                     print(chapters)
-                    print(chp_links)
                 break
             if count < 6:  # stop appending after the 6th element
                 chapters.append(chapter_title)
-                chp_links.append("https://catmanga.org" + chapter['href'])
+                # chp_links.append("https://catmanga.org" + chapter['href'])
+                link = "https://catmanga.org" + chapter['href']
+                value_field.append(f"[Read here]({link})")
             earliest_chapter = chapter_title
             chapter = chapter.next_sibling
         if chapter_exists:
@@ -81,7 +83,7 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                                   "chapters closest to your last read chapter and the 3 newest chapters found."
                 print(description + " returned status: Update Found")
                 manga = {'title': series_title, 'source_name': "Cat Manga", 'source_link': url, 'chapters': chapters,
-                         'chp_links': chp_links, 'description': description,
+                         'value': value_field, 'description': description,
                          'thumbnail': page_soup.find('img', class_='e1jf7yel7 css-1jarxog e1je4q6n0')['src'],
                          'status': "Update found"}
             else:
@@ -92,12 +94,13 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
             print(f"{series_title} {chapter_str} cannot be found on the website, returned status: Failure.")
             manga = {'title': series_title, 'source_name': "Cat Manga", 'source_link': url,
                      'thumbnail': page_soup.find('img', class_='e1jf7yel7 css-1jarxog e1je4q6n0')['src'],
-                     'chapters': [], 'chp_links': [], 'status': "Failure",
+                     'chapters': [], 'value': [], 'status': "Failure",
                      'description': f"The chapter listed on your mangalist, {chapter_str}, cannot be found on the "
                                     f"website.\nChapters found: {earliest_chapter} - "
                                     f"{page_soup.find('p', class_='css-1lrrmqm e1ba5g7u2').text}. "
                                     f"\nTotal chapters: {str(total_chapters)}"}
         return manga
+    # todo find a way to get the break in chapters and display it.
 
 
 async def aio_manga_details(session, url):
