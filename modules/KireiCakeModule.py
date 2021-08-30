@@ -109,7 +109,6 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
         print("Total Chapters: " + str(total_chapters))
         chapter_exists: bool = False
         chapters = []
-        chp_links = []
         field_values = []
         for count in range(0, total_chapters):
             if chapter.find('div', class_='title').text == chapter_str:
@@ -189,11 +188,11 @@ async def aio_manga_details(session, url):
             return {"request_status": "Unable to gather information from link"}
         else:
             description = page_soup.find('div', class_='info').find('li').find_next_sibling('li').text
-            print(description)
             if description == "":
                 description = "Not found."
             manga = {
-                'title': title, 'description': description,
+                'title': title,
+                'description': description,
                 'chapters': len(page_soup.find_all('div', class_='element')),
                 'request_status': "Success"
             }

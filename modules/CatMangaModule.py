@@ -60,13 +60,11 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                     for cnt in range(5, 2, -1):
                         chapter = chapter.previous_sibling
                         chapters[cnt] = chapter.find('p', class_="css-1lrrmqm e1ba5g7u2").text
-                        # chp_links[cnt] = "https://catmanga.org" + chapter['href']
                         value_field[cnt] = "https://catmanga.org" + chapter['href']
                     print(chapters)
                 break
             if count < 6:  # stop appending after the 6th element
                 chapters.append(chapter_title)
-                # chp_links.append("https://catmanga.org" + chapter['href'])
                 link = "https://catmanga.org" + chapter['href']
                 value_field.append(f"[Read here]({link})")
             earliest_chapter = chapter_title
@@ -115,7 +113,8 @@ async def aio_manga_details(session, url):
         except AttributeError:
             return {'request_status': "Unable to gather information from link"}
         else:
-            manga = {'title': title, 'request_status': "Success",
+            manga = {'title': title,
+                     'request_status': "Success",
                      'author': page_soup.find('p', class_='css-1g7ibvt e1dq2ku10').text,
                      'description': page_soup.find('p', class_='css-fo0pm6 e1jf7yel3').text,
                      'chapters': len(page_soup.find_all('a', class_='css-1pfv033 e1ba5g7u0')),

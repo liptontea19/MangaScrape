@@ -6,7 +6,7 @@ import discord
 import pymongo
 import selenium.common.exceptions
 
-from modules import CatMangaModule, KireiCakeModule, MangaPlusModule
+from modules import CatMangaModule, GDModule, KireiCakeModule, MangaDexModule, MangaPlusModule
 from pymongo.errors import PyMongoError
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
@@ -275,32 +275,42 @@ async def mangalist(ctx, collection: pymongo.collection, client, opt_action="def
         await session.close()
 
 
-async def manga_search(ctx, link, session, driver, collection, client, add_option=False):
+async def manga_search(ctx, link, collection, client, add_option=False):
     # session = aiohttp.ClientSession()
     manga_found = False
     manga_in_db = False
     source = ""
     manga = {}
     try:
-        if "catmanga.org" in link:
-            source = "Cat Manga"
-            manga = await CatMangaModule.aio_manga_details(session, link)
-        elif "kireicake.com/series" in link:
-            source = "Kirei Cake"
-            manga = await KireiCakeModule.aio_manga_details(session, link)
-        elif "mangaplus.shueisha.co.jp/" in link:
-            """
+        if "catmanga.org" in link or "kireicake.com/series" in link or "mangadex.org/title/" in link:
+            session = aiohttp.ClientSession()
+            if "catmanga.org" in link:
+                source = "Cat Manga"
+                manga = await CatMangaModule.aio_manga_details(session, link)
+            elif "kireicake.com/series" in link:
+                source = "Kirei Cake"
+                manga = await KireiCakeModule.aio_manga_details(session, link)
+            elif "mangadex.org/title/" in link:
+                source = "MangaDex"
+                manga = await MangaDexModule.manga_details(session, link)
+            await session.close()
+        elif "gdegenscans.xyz/manga/" in link or "mangaplus.shueisha.co.jp/" in link:
             options = Options()
             options.headless = True
             driver = webdriver.Firefox(options=options, executable_path='geckodriver-v0.29.1-win64/geckodriver.exe',
                                        service_log_path='logs/geckodriver.log')
-            """
-            source = "MANGA Plus by SHUEISHA"
-            manga = await MangaPlusModule.manga_details(driver, link)
+            if "gdegenscans.xyz/manga/" in link:
+                source = "Galaxy Degen Scans"
+                manga = await GDModule.manga_details(driver, link)
+            elif "mangaplus.shueisha.co.jp/" in link:
+                source = "MANGA Plus by SHUEISHA"
+                manga = await MangaPlusModule.manga_details(driver, link)
+            driver.quit()
         else:
             logging.info("Link received was not from a supported website or incomplete, $search command ended.")
             await ctx.author.send("Hmmm, looks like your command is missing a link or is from an unsupported "
-                                  "website. This function only supports the Cat Manga and Kirei Cake websites at "
+                                  "website. This function only supports the Cat Manga, Galaxy Degen, Kirei Cake and "
+                                  "Shueisha's Manga+ websites at "
                                   "the moment, if you would like your website to be added, message Daniel "
                                   "about it.")
             return
@@ -316,25 +326,26 @@ async def manga_search(ctx, link, session, driver, collection, client, add_optio
         if manga['request_status'] == "Success":
             manga_found = True
             embed = discord.Embed(title=manga['title'], url=link, description=manga['description'])
+            embed.set_author(name=source)
+            embed.add_field(name="Latest Chapter", value=manga['chapters'], inline=True)
             if 'cover' in manga:
                 embed.set_thumbnail(url=manga['cover'])
-            embed.set_author(name=source)
-            embed.add_field(name="Total Chapters", value=manga['chapters'], inline=True)
             if 'status' in manga:
                 embed.add_field(name="Status", value=manga['status'], inline=True)
+            if 'artist' in manga:
+                embed.add_field(name="Manga Artist", value=manga['artist'], inline=True)
             if 'author' in manga:
                 embed.add_field(name="Manga Author", value=manga['author'], inline=True)
             if 'tag' in manga:
                 embed.add_field(name="Tag(s)", value=manga['tag'], inline=True)
             if add_option is True:
-                if collection.count_documents({'_id': ctx.author.id, 'mangalist': {
-                    '$elemMatch': {'title': manga['title'], 'source': source}}}) == 1:
+                if collection.count_documents({'_id': ctx.author.id, 'mangalist': {'$elemMatch': {'title': manga['title'], 'source': source}}}) == 1:
                     # checks if the queried manga's details match with an existing manga in the database
                     embed.set_footer(text="This manga is in your list.")
                     manga_in_db = True
                     await ctx.author.send(embed=embed)
                 else:
-                    embed.set_footer(text="Would you like to add this manga to your list? (Y/N)")
+                    embed.set_footer(text="Press OK to add this manga to your list.")
                     output = await ctx.author.send(embed=embed)
                     await output.add_reaction(OK_emoji)
             else:
@@ -343,8 +354,6 @@ async def manga_search(ctx, link, session, driver, collection, client, add_optio
             logging.info("Website was supported but data retrieval failed. Link: " + link)
             await ctx.author.send(f"Status: {manga['request_status']}. The bot was unable to find any information "
                                   f"at the link you provided.")
-    finally:
-        await session.close()
 
     if add_option is True and manga_found is True and manga_in_db is False:
         def check(msg):
@@ -356,7 +365,7 @@ async def manga_search(ctx, link, session, driver, collection, client, add_optio
         try:
             reaction, user = await client.wait_for('reaction_add', check=reaction_check, timeout=15)
         except asyncio.TimeoutError:
-            print("$search command has timed out.")
+            print("$search adding manga function has timed out.")
             logging.info("$search command has timed out 15 seconds after waiting for user to "
                          "confirm adding the manga to mangalist.")
         else:
