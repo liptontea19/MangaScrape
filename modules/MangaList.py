@@ -289,7 +289,7 @@ async def manga_search(ctx, link, collection, client, add_option=False):
                 manga = await CatMangaModule.aio_manga_details(session, link)
             elif "kireicake.com/series" in link:
                 source = "Kirei Cake"
-                manga = await KireiCakeModule.aio_manga_details(session, link)
+                manga = await KireiCakeModule.manga_details(session, link)
             elif "mangadex.org/title/" in link:
                 source = "MangaDex"
                 manga = await MangaDexModule.manga_details(session, link)
@@ -405,7 +405,7 @@ async def manga_search_2(ctx, link, session, driver):
             manga['source'] = "Cat Manga"
 
         elif "kireicake.com/series" in link:
-            manga = await KireiCakeModule.aio_manga_details(session, link)
+            manga = await KireiCakeModule.manga_details(session, link)
             manga['source'] = "Kirei Cake"
         elif "mangaplus.shueisha.co.jp/" in link:
             manga = await MangaPlusModule.manga_details(driver, link)

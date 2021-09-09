@@ -43,7 +43,7 @@ async def aio_chapter_search(session, series_title, chapter_str, url):
                    f"Oldest chapter found: {earliest_chapter}. Total chapters: {str(total_chapters)}\nLink: {url}\n"
 
 
-async def aio_chapter_search2(session, series_title, chapter_str, url):
+async def chapter_updates(session, series_title, chapter_str, url):
     async with session.get(url) as resp:
         print(resp.status)
         page_soup = BeautifulSoup(await resp.read(), 'html.parser')
@@ -60,7 +60,8 @@ async def aio_chapter_search2(session, series_title, chapter_str, url):
                     for cnt in range(5, 2, -1):
                         chapter = chapter.previous_sibling
                         chapters[cnt] = chapter.find('p', class_="css-1lrrmqm e1ba5g7u2").text
-                        value_field[cnt] = "https://catmanga.org" + chapter['href']
+                        link = "https://catmanga.org" + chapter['href']
+                        value_field[cnt] = f"[Read here]({link})"
                     print(chapters)
                 break
             if count < 6:  # stop appending after the 6th element

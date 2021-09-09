@@ -1,8 +1,7 @@
-import time
 import logging
 
 
-async def chapter_updates(session, chapter, url):
+async def chapter_updates(session, title, chapter, url, language="en", translator_grp="None"):
     """
     1) Get manga ID from URL
     2) Send HTTP request using api_url and parameters for the specified language and the 10 latest chapters available
@@ -27,122 +26,152 @@ async def chapter_updates(session, chapter, url):
         Item 1  Item 10 (Taken from previous http call)
         Item 2  Item 11 (1st item from set 2)
         Item 3  Item 12 (2nd item from set 2)
+    :param title:
+    :param language:
+    :param translator_grp:
     :param session:
     :param chapter:
     :param url:
     :return:
     """
-    chapter = float(chapter.split()[-1])
-    language = "en"
-    offset = 0  # whoo whoo whoo
-    found_stat = False
-    manga_id = url.split("/")[-1]
-    params = f"?manga={manga_id}&order[chapter]=desc&translatedLanguage[]={language}"
-    api_url = f"https://api.mangadex.org/chapter{params}"
-    chapters = []
-    value_field = []
-    while found_stat is False:
-        async with session.get(api_url) as resp:
-            chapter_list_json = await resp.json()
-            chapter_num_list = [float(chapters['data']['attributes']['chapter']) for chapters in chapter_list_json['results']]
-            if chapter in chapter_num_list:  # or chapter == chapter_num_list[-1] - 1:
-                index = chapter_num_list.index(chapter)
-                count = index + offset
-                """
-                if count < 6:  # add all found values in if there are <=6 chapters found
-                    for i in range(0, index):
-                        chapters.append("Chapter " + chapter_list_json['results'][i]['data']['attributes']['chapter'])
-                        link = "https://mangadex.org/chapter/" + chapter_list_json['results'][i]['data']['id']
-                        value_field.append(f"[Read Here]({link})")
-                else:
-                    pass
-                """
-                return count
-                # found_stat = True
-                # break
-            elif chapter == chapter_num_list[-1] - 1:
-                return offset
-            else:
-                offset = offset + 10  # next http request will call the next 10 elements in the list
-                api_url = f"https://api.mangadex.org/chapter{params}&offset={offset}"
-
-"""
-async def manga_details0(driver: webdriver.Firefox, url):  
-    # Regular web-page scraper that is slower than manga_details due to using a webdriver instead of HTTP requests to
-    # fetch information
     try:
-        driver.get(url)
-    except TimeoutException:
-        return {'request_status': "Failure"}
+        chapter = float(chapter.split()[-1])
+    except ValueError:
+        logging.debug(f"{chapter} is not an acceptable value.")
+        return {'status': "Failure",
+                'description': f"{title}'s chapter value: {chapter} is not a numerical value."}
     else:
-        time.sleep(1)
-        manga = {'title': WebDriverWait(driver, 10).until(EC.presence_of_element_located((
-                    # By.CSS_SELECTOR, 'div.mt-4.mb-sm-2.text-h6'
-                    By.CSS_SELECTOR, 'div.mt-4.mb-sm-2.title__desktop'
-                    # Firefox web engine receives this element name for title
-                    ))).text,
-                 'request_status': "Success",
-                 'status': driver.find_element_by_css_selector('span.simple-tag').text,
-                 'description': WebDriverWait(driver, 10)
-                     .until(EC.presence_of_element_located((By.CSS_SELECTOR, 'p.ma-0'))).text
-                 }
-
-        try:
-            time.sleep(1)
-            cover_url = WebDriverWait(driver, 10).until(EC.visibility_of_element_located((
-                By.CSS_SELECTOR, 'div.v-image__image.v-image__image--contain'))) \
-                .value_of_css_property('background-image')
-            manga['cover'] = cover_url.split('"')[1]
-        except NoSuchElementException:
-            logging.info("Unable to locate manga's cover page url.")
-        except IndexError:
-            logging.info("URL located, but unable to be retrieved.")
-
-        # tag script
-        container_names = driver.find_elements_by_css_selector('h4.mb-3')
-        tag_output = []
-        tag_string = ""
-        for name in container_names:
-            if name.text in ["Author", "Artist"]:
-                creator_name = name.find_element_by_xpath('..//a/span').text
-                manga[name.text.lower()] = creator_name
-            elif name.text in ["Genres", "Themes"]:
-                try:
-                    logging.debug(f"Searching for {name.text} container")
-                    tag_list = name.find_elements_by_xpath('../div/span[@class="simple-tag"]')
-                    tag_output.extend(tag_list)
-                except NoSuchElementException:
-                    print(f"Could not locate {name.text}'s container.")
-            elif name.text == "Demographic":
-                try:
-                    logging.debug("Searching for Demographic tags.")
-                    tag_list = name.find_elements_by_xpath("..//span[@class='simple-tag']")
-                    tag_output.extend(tag_list)
-                except NoSuchElementException:
-                    print("Could not locate Demographic tags.")
-        for index in range(0, len(tag_output)):
-            if index == 0:
-                tag_string = tag_output[0].text
-                continue
-            tag_string = tag_string + ", " + tag_output[index].text
-        if tag_string != "":
-            manga['tag'] = tag_string
+        offset = 0  # whoo whoo whoo
+        found_stat = False
+        manga_id = url.split("/")[4]
+        params = f"?manga={manga_id}&order[chapter]=desc&translatedLanguage[]={language}&includes[]=scanlation_group"
+        if translator_grp != "None":
+            params = params + "&groups[]=" + translator_grp
+        api_url = f"https://api.mangadex.org/chapter{params}"
+        chapters = []
+        value_field = []
+        while found_stat is False:
+            async with session.get(api_url) as resp:
+                chapter_list_json = await resp.json()
+                if not chapter_list_json['results']:
+                    break
+                chapter_num_list = [float(chapters['data']['attributes']['chapter']) for chapters in
+                                    chapter_list_json['results']]
+                if chapter in chapter_num_list:  # or chapter == chapter_num_list[-1] - 1:
+                    index = chapter_num_list.index(chapter)
+                    count = index + offset
+                    if count < 10:
+                        for elem_count in range(0, index):
+                            if elem_count <= 2 or elem_count >= index - 3:
+                                chapters.append(
+                                    "Chapter " + chapter_list_json['results'][elem_count]['data']['attributes'][
+                                        'chapter'])
+                                value_field.append(
+                                    f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} [Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) "
+                                    f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}")
+                    else:
+                        """
+                        chapters value structure: "Chapter {chapter number}"
+                        value_field value structure: "Group: {scanlation group's name} [Read Here]({chapter link}) {date}"
+                        for grabbing values on pages that come after the first, only the last 3 values of
+                        chapters and value_field will be replaced as the first 3 are always the latest 3 updates                        
+                        in the case of the next page only containing 1 or 2 older updates, the last 3 values will
+                        be shifted, 5th element value in list-> 4th element's value, to accommodate the last
+                        value being the oldest update                          
+                        Step 1: Shift Last two values of both lists one position up, 5 -> 4, 6 -> 5
+                        Step 2: Last elements of the lists will then have the "oldest" update data be added in
+                        Step 3: Repeat until stop point (index) has been reached 
+                        """
+                        if index <= 2:
+                            for elem_count in range(0, index):  # loop stops after either 1 or 2 cycles
+                                chapters[3] = chapters[4]
+                                chapters[4] = chapters[5]
+                                value_field[3] = value_field[4]
+                                value_field[4] = value_field[5]
+                                chapters[5] = "Chapter " + \
+                                              chapter_list_json['results'][elem_count]['data']['attributes']['chapter']
+                                value_field[
+                                    5] = f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} " \
+                                         f"[Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) " + \
+                                         f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}"
+                        else:
+                            i = 3
+                            for elem_count in range(index - 3, index):
+                                chapters[i] = "Chapter " + \
+                                              chapter_list_json['results'][elem_count]['data']['attributes']['chapter']
+                                value_field[
+                                    i] = f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} " \
+                                         f"[Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) " + \
+                                         f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}"
+                                i = i + 1
+                    found_stat = True
+                else:
+                    if offset == 0:
+                        for elem_count in range(0, 10):
+                            if elem_count <= 2 or elem_count >= 7:
+                                chapters.append(
+                                    "Chapter " + chapter_list_json['results'][elem_count]['data']['attributes'][
+                                        'chapter'])
+                                value_field.append(
+                                    f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} "
+                                    f"[Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) "
+                                    f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}")
+                    else:
+                        """
+                        if the last read chapter is not on the current page, grab the last 3 values on current
+                        page and move on. If there are less than 3 values on the current page, push the last 2 values in
+                        the list up one position while adding the information into the last position, repeat until
+                        completion. Make one final check to see if there are less than 10 chapters on the current page.
+                        If there are < 10, break the loop. On the off-chance that the last value in the list happens to 
+                        be the first chapter in the manga while also being the 10th value in the list, a 'result' check
+                        at the start of the loop will immediately break the loop and skip the rest of the code. 
+                        """
+                        chap_count = len(chapter_list_json['results'])
+                        if chap_count >= 3:
+                            i = 3
+                            for elem_count in range(chap_count - 3, chap_count):
+                                chapters[i] = "Chapter " + \
+                                              chapter_list_json['results'][elem_count]['data']['attributes'][
+                                                  'chapter']
+                                value_field[
+                                    i] = f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} " \
+                                         f"[Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) " + \
+                                         f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}"
+                                i = i + 1
+                        else:
+                            for elem_count in range(0, chap_count):
+                                chapters[3] = chapters[4]
+                                chapters[4] = chapters[5]
+                                value_field[3] = value_field[4]
+                                value_field[4] = value_field[5]
+                                chapters[5] = "Chapter " + \
+                                              chapter_list_json['results'][elem_count]['data']['attributes']['chapter']
+                                value_field[
+                                    5] = f"Group: {chapter_list_json['results'][elem_count]['relationships'][0]['attributes']['name']} " \
+                                         f"[Read Here]({'https://mangadex.org/chapter/' + chapter_list_json['results'][elem_count]['data']['id']}) " + \
+                                         f"{chapter_list_json['results'][elem_count]['data']['attributes']['publishAt'].split('T')[0]}"
+                        if chap_count < 10:
+                            break  # breaks loop as there will be no more values to retrieve on the next call
+                    offset = offset + 10  # next http request will call the next 10 elements in the list
+                    api_url = f"https://api.mangadex.org/chapter{params}&offset={offset}"
+        if found_stat:
+            if count > 0:
+                manga = {'chapters': chapters,
+                         'value': value_field,
+                         'status': "Update found",
+                         'update_count': count}
+            else:
+                manga = {'status': "Up to date"}
         else:
-            logging.debug("No tags were found.")
-
-        driver.find_element_by_xpath("//div[@class='selector']/following-sibling::div[2]").click()
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((
-            By.CSS_SELECTOR, 'div.v-input__icon.v-input__icon--append'))).click()
-        driver.find_element_by_css_selector("div.v-input--selection-controls__input").click()
-        chapter = WebDriverWait(driver, 10).until(EC.presence_of_element_located((
-            By.CSS_SELECTOR, 'div.d-flex.align-center.align-self-start.col-lg-2.col-12'))).text
-        manga['chapters'] = chapter
-
+            manga = {'status': "Failure",
+                     'description': f"{title} chapter, {chapter}, stored on your mangalist cannot be found on the "
+                                    f"website. Chapters found: {chapters[-1]} - {chapters[0]}. Please verify that your "
+                                    f"stored chapter value is present on the page."
+                     }
         return manga
-"""
 
 
-async def MDAPIDetails(session, url):
+async def manga_details(session, url):
     """
     Retrieves manga ID from url and feeds it into the MangaDex API to get information.
     Information is then placed in a manga Dict object. Always returns a 'request_status' field in object.
@@ -163,7 +192,7 @@ async def MDAPIDetails(session, url):
                 'tags': [tags['attributes']['name']['en'] for tags in det_json['data']['attributes']['tags']],
                 'author': det_json['relationships'][0]['attributes']['name'],
                 'artist': det_json['relationships'][1]['attributes']['name'],
-                'chapter': det_json['data']['attributes']['lastChapter'],
+                'chapters': det_json['data']['attributes']['lastChapter'],
                 'status': det_json['data']['attributes']['status'].capitalize(),
                 'id': manga_id
             }

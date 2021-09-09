@@ -35,5 +35,5 @@ async def manga_details(driver: webdriver, url):
         return manga
 
 
-async def manga_search(driver: webdriver, url):
+async def manga_updates(driver: webdriver, url):
     pass

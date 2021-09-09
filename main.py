@@ -10,12 +10,13 @@ from collections import Counter
 
 import aiohttp
 import discord
+import selenium.common.exceptions
 from discord.ext import tasks
 from pymongo import MongoClient
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 
-from modules import CatMangaModule, KireiCakeModule, GDModule, MangaPlusModule, MangaList
+from modules import CatMangaModule, KireiCakeModule, GDModule, MangaDexModule, MangaPlusModule, MangaList
 
 # todo remove all unnecessary print() statements and replace them with logging commands
 
@@ -112,45 +113,35 @@ def updates_desc_maker(manga, title, chapter):
     :param manga: the object always has a status value and optional values such as update_count if the search function
     managed to find chapter updates. For error messages a default error message is present if the search function does
     not attach one
-    :param title:
-    :param chapter:
+    :param title: title of manga that is receiving the update notification
+    :param chapter: the chapter number of the user's read chapter
     :return desc: description that informs user of number of updates or whether there was an error
     """
-    update_count = manga['update_count']
-    if manga['status'] != "Failure":
-        if update_count > 0:  # status: Update found
-            if update_count == 1:
-                desc = f"1 update since your last read chapter, {chapter}."
-            elif update_count <= 6:
-                logging.debug(f"{update_count} updates found.")
-                desc = f"{update_count} updates since your last read chapter, {chapter}."
-            else:
-                desc = f"{update_count} updates since your last read chapter, {chapter}.\nDisplaying the 3 " \
-                                     "chapters closest to your last read chapter and the 3 newest chapters found."
-        else:  # status: Up to date
-            logging.debug("User is up to date with the latest released chapter of " + title + ", "
-                          + chapter + " returned status: Up to date")
-            desc = ""  # needed as desc is always returned at the end
-    else:  # status: Failure
-        logging.debug("Manga cannot be found on site. Reason: Input Chapter Value is out of bounds")
-        # logging.debug("User's search chapter is not within the manga list.")
-
-        desc = f"{title} chapter: {chapter}, stored on your mangalist cannot be found on the website."
-    return desc
-
-
-"""
-async def message_wait(ctx, check_con, time_window):
     try:
-        msg = await client.wait_for('message', check=check_con, timeout=time_window)
-        message = msg.content
-        timed_out = False
-    except asyncio.TimeoutError:
-        message = ""
-        timed_out = True
-        await ctx.author.send("Your request has timed out, please try again.")
-    return message, timed_out
-"""
+        update_count = manga['update_count']
+    except KeyError:
+        return f"Critical Error: Missing update_count. Additional Info: Manga: {title}, Chapter: {chapter}"
+    else:
+        if manga['status'] != "Failure":
+            if update_count > 0:  # status: Update found
+                if update_count == 1:
+                    desc = f"1 update since your last read chapter, {chapter}."
+                elif update_count <= 6:
+                    logging.debug(f"{update_count} updates found.")
+                    desc = f"{update_count} updates since your last read chapter, {chapter}."
+                else:
+                    desc = f"{update_count} updates since your last read chapter, {chapter}.\nDisplaying the 3 " \
+                                         "chapters closest to your last read chapter and the 3 newest chapters found."
+            else:  # status: Up to date
+                logging.debug("User is up to date with the latest released chapter of " + title + ", "
+                              + chapter + " returned status: Up to date")
+                desc = ""  # needed as desc is always returned at the end
+        else:  # status: Failure
+            logging.debug("Manga cannot be found on site. Reason: Input Chapter Value is out of bounds")
+            # logging.debug("User's search chapter is not within the manga list.")
+
+            desc = f"{title} chapter: {chapter}, stored on your mangalist cannot be found on the website."
+        return desc
 
 
 @client.event
@@ -170,13 +161,8 @@ async def on_message(ctx):
         await ctx.author.send(helpmanual_adding)
     elif ctx.content.startswith('$search'):
         logging.info(f"User {ctx.author.name} ran $search command.")
-        # session = aiohttp.ClientSession()
         link = ctx.content.replace("$search ", "")
-        # driver = webdriver.Firefox(options=ff_options, executable_path='geckodriver-v0.29.1-win64/geckodriver.exe',
-                                   # service_log_path='logs/geckodriver.log')
-        print("Driver has loaded")
         await MangaList.manga_search(ctx, link, collection, client, add_option=True)
-        # driver.quit()
         """
         manga_found = False
         manga_in_db = False
@@ -345,13 +331,10 @@ async def on_message(ctx):
             mangalist = user_doc["mangalist"]
             curr_count = 0
             session = aiohttp.ClientSession()
-            driver = webdriver.Chrome(executable_path='chromedriver_win32/chromedriver.exe')
-            """
+            # driver = webdriver.Chrome(executable_path='chromedriver_win32/chromedriver.exe')
             driver = webdriver.Firefox(options=ff_options,
                                        executable_path='geckodriver-v0.29.1-win64/geckodriver.exe',
                                        service_log_path='logs/geckodriver.log')
-            print("Firefox Driver has started.")
-            """
             footer_text = "Use the arrow buttons to view different pages of the mangalist. " \
                           "To view extra information on a manga in the list, press OK and " \
                           "enter the number of the manga."
@@ -395,6 +378,7 @@ async def on_message(ctx):
                             break
 
             await session.close()
+            driver.quit()
         elif ctx.content.startswith('$editlist'):
             user_doc = collection.find_one(myquery)
             mangalist = user_doc["mangalist"]
@@ -445,9 +429,8 @@ async def on_message(ctx):
             user_doc = collection.find_one(myquery)
             mangalist = user_doc["mangalist"]
             curr_count = 0
-            session = aiohttp.ClientSession()
             footer_text = "Use the arrow buttons to view different pages of the mangalist. To delete " \
-                          "a manga in the list, press OK and enter the list number of the manga."
+                          "a manga in the list, press OK on the current page and enter the index number of the manga."
 
             def react_check(reaction, user):
                 return user == ctx.author and str(reaction.emoji) in ["\U00002B05", "\U000027A1", OK_emoji]
@@ -487,7 +470,6 @@ async def on_message(ctx):
                         except asyncio.TimeoutError:
                             print("Mangalist command listener ends here.")
                             break
-            await session.close()
         elif ctx.content.startswith('$profile'):
             user_doc = collection.find({'_id': ctx.author.id})
             embed = discord.Embed()
@@ -510,10 +492,7 @@ async def on_message(ctx):
                                 value=f"{most_common_source}, {source_count} manga in list")
                 await ctx.channel.send(embed=embed)
         elif ctx.content.startswith('$updates'):
-            find_list = []
-            session = aiohttp.ClientSession()
-            driver = webdriver.Firefox(options=ff_options, executable_path='geckodriver-v0.29.1-win64/geckodriver.exe',
-                                       service_log_path='logs/geckodriver.log')
+            update_list = []
             user = collection.find(myquery)
             for result in user:
                 mangalist = result["mangalist"]
@@ -523,41 +502,67 @@ async def on_message(ctx):
                     source = manga['source']
                     link = manga['link']
                     chapter = manga['chapter_read']
-                    print(f"Looking up {title} on {source}, {chapter}")
+                    # print(f"Looking up {title} on {source}, {chapter}")
                     logging.debug(f"Looking up {title} on {source}, {chapter}")
-                    try:
-                        if source == "Cat Manga":
-                            find_list.append(await CatMangaModule.aio_chapter_search2(session, title, chapter, link))
-                        elif source == "Kirei Cake":
-                            find_list.append(await KireiCakeModule.aio_chapter_search2(session, title, chapter, link))
-                            """
-                            elif source == "MangaDex":
-                                manga = await MangaDexModule.chapter_updates(session, title, chapter, link)
+                    if source in ["Cat Manga", "Kirei Cake", "MangaDex"]:
+                        try:
+                            session  # if it exists, use it; if not, make it exist then use it as usual
+                        except NameError:
+                            session = aiohttp.ClientSession()
+                            logging.debug("An aiohttp session was started.")
+                        finally:
+                            try:
+                                if source == "Cat Manga":
+                                    update_list.append(await CatMangaModule.chapter_updates(session, title, chapter, link))
+                                elif source == "Kirei Cake":
+                                    update_list.append(await KireiCakeModule.chapter_updates(session, title, chapter, link))
+                                elif source == "MangaDex":
+                                    manga = await MangaDexModule.chapter_updates(session, title, chapter, link)
+                                    if 'description' not in manga:
+                                        manga['description'] = updates_desc_maker(manga, title, chapter)
+                                    manga['title'] = title
+                                    manga['source_name'] = source
+                                    manga['source_link'] = link
+                                    update_list.append(manga)
+                            except aiohttp.InvalidURL:
+                                await ctx.author.send(f"Error: The link to {title} stored in the database does not"
+                                                      f" exist!\nLink: {link}")
+                    elif source in ["MANGA Plus by SHUEISHA"]:
+                        try:
+                            driver
+                        except UnboundLocalError:
+                            driver = webdriver.Firefox(options=ff_options,
+                                                       executable_path='geckodriver-v0.29.1-win64/geckodriver.exe',
+                                                       service_log_path='logs/geckodriver.log')
+                            logging.debug("A webdriver instance was started.")
+                        finally:
+                            try:
+                                if source == "MANGA Plus by SHUEISHA":
+                                    manga = await MangaPlusModule.chapter_updates(driver, title, chapter, link)
                                 if 'description' not in manga:
                                     manga['description'] = updates_desc_maker(manga, title, chapter)
                                 manga['title'] = title
                                 manga['source_name'] = source
                                 manga['source_link'] = link
-                                find_list.append(manga)
-                            """
-                        elif source == "MANGA Plus by SHUEISHA":
-                            manga = await MangaPlusModule.chapter_updates(driver, title, chapter, link)
-                            if 'description' not in manga:
-                                manga['description'] = updates_desc_maker(manga, title, chapter)
-                            manga['title'] = title
-                            manga['source_name'] = source
-                            manga['source_link'] = link
-                            find_list.append(manga)
-                    except aiohttp.InvalidURL:
-                        await ctx.author.send(f"Error: The link to {title} stored in the database does not exist!\n"
-                                              f"Link: {link}")
-            await session.close()
-            driver.quit()
-            if not find_list:
+                                update_list.append(manga)
+                            except selenium.common.exceptions.TimeoutException:
+                                await ctx.author.send("The webdriver command has timed out, please try again.")
+                    else:
+                        await ctx.author.send(f"{title} on {source} is not supported.")
+                try:  # if there is an instance of a session or web-driver, it will be ended
+                    await session.close()
+                    logging.debug("Session instance has been closed.")
+                except NameError:
+                    logging.debug("There was no session instance to quit.")
+                try:
+                    driver.quit()
+                    logging.debug("Webdriver instance has been quitted.")
+                except NameError:
+                    logging.debug("There was no webdriver instance to quit.")
+            if not update_list:
                 logging.debug("User is up to date with all their manga chapters.")
-            for manga in find_list:
+            for manga in update_list:
                 if manga['status'] != "Up to date":
-                    total_chapters = len(manga['chapters'])
                     embed = discord.Embed(title=manga['title'],
                                           url=manga["source_link"],
                                           description=manga["description"])
@@ -565,6 +570,7 @@ async def on_message(ctx):
                     if 'thumbnail' in manga:
                         embed.set_thumbnail(url=manga['thumbnail'])
                     if manga['status'] == "Update found":
+                        total_chapters = len(manga['chapters'])
                         for x in range(total_chapters, 0, -1):
                             embed.add_field(name=manga['chapters'][x - 1],
                                             value=manga['value'][x - 1],
@@ -584,18 +590,8 @@ async def on_message(ctx):
             collection.update_one({'_id': ctx.author.id}, {'$set': {'dailyupdates': False}})
             await ctx.author.send("You will not receive daily updates.")
 
-        # test commands for different things
-        """elif ctx.content.startswith('$gdtest'):  # todo fix this piece of shit and test out the jscript selenium thing
-            session = aiohttp.ClientSession
-            # await GDModule.manga_search(session, "Isekai Mokushiroku Mynoghra", "Chapter 9,2",
-            #                                  "https://gdegenscans.xyz/manga/isekai-mokushiroku-mynoghra-hametsu-no-bunmei-de-hajimeru-sekai-seifuku/")
-            # expected results: 2 updates informing me of Chapters 10.1 and 10.2's addition and links to them
-        
-        elif ctx.content.startswith('$roletest'):
-            await daily_updates()"""
-
-
-@tasks.loop(hours=24)
+# todo update the daily updates command to the newest setup
+"""@tasks.loop(hours=24)  
 async def daily_updates():
     session = aiohttp.ClientSession()
     user = collection.find({'dailyupdates': True})  # only return the documents of users who subscribed to dailyUpdates
@@ -648,7 +644,7 @@ async def daily_updates():
                 if manga['status'] == "Update found":
                     await output.add_reaction("✅")
     await session.close()
-    driver.quit()
+    driver.quit()"""
 
 
 """
